@@ -1,0 +1,8 @@
+bin/
+tracks/
+results/
+*.o
+*.swp
+.git/
+Dockerfile
+.dockerignore

@@ -36,8 +36,9 @@ RUN apk add --no-cache --allow-untrusted \
     alsa-lib \
     alsa-utils
 
-# Группа с GID 63 (как на хосте Fedora)
-RUN addgroup -g 63 audio_host && \
+ARG AUDIO_GID=63
+
+RUN addgroup -g AUDIO_GROUP audio_host && \
     adduser -D -G audio_host experiment
 
 WORKDIR /app

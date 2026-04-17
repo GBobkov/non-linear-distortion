@@ -8,11 +8,14 @@ echo -e "\n=== STOPPING PIPEWIRE ==="
 systemctl --user stop pipewire.socket pipewire.service pipewire-pulse.socket pipewire-pulse.service wireplumber.service
 sleep 1
 
+AUDIO_GID = $(getent group audio | cut -d: -f3)
+
 echo -e "\n========================="
 echo "RUNNING experiment..."
 docker run -it --rm \
     --device /dev/snd \
     --group-add 63 \
+    --build-arg AUDIO_GROUP=$AUDIO_GID \
     -v /dev/shm:/dev/shm \
     aero-experiment
 

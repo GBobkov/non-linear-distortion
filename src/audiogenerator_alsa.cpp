@@ -168,53 +168,87 @@ void TAlsaGenerator::PlayAudioSample(void)
     //snd_pcm_close(FHandle);
 
 }
-
 TAlsaGenerator::TLoadBufferResult TAlsaGenerator::LoadStreamBuffer(std::vector<float> *samples)
 {
-    if(nullptr == samples)
+    if (nullptr == samples)
         return LoadBufferBadInput;
 
     unsigned int in_size = samples->size();
-    if(CMaxStreamBufferSize < in_size)
+    if (CMaxStreamBufferSize < in_size)
         return LoadBufferBadInput;
-
-    snd_pcm_sframes_t avaliable_smples = snd_pcm_avail_update(FHandle);
-    if(avaliable_smples < 0 )
-        return LoadBufferError;
-
-
-    snd_pcm_sframes_t frames;
-
 
     for (unsigned int i = 0; i < in_size; i++)
     {
-        float val = 8388608 + 8388500*samples->at(i);
+        float val = 8388608 + 8388500 * samples->at(i);
         FStreamBuffer1[i] = (uint32_t)val;
     }
-
-
     snd_pcm_state_t state = snd_pcm_state(FHandle);
-    if(SND_PCM_STATE_SETUP == state)
+    if (SND_PCM_STATE_SETUP == state)
         snd_pcm_prepare(FHandle);
 
-    frames = -EAGAIN;
-    while(-EAGAIN == frames)
+    if (state == SND_PCM_STATE_XRUN)
+    {
+        snd_pcm_prepare(FHandle);
+    }
+
+    snd_pcm_sframes_t frames = -EAGAIN;
+    int attempts = 0;
+    const int MAX_ATTEMPTS = 100;
+    
+    while (frames == -EAGAIN && attempts < MAX_ATTEMPTS)
     {
         frames = snd_pcm_writei(FHandle, FStreamBuffer1, in_size);
-        if(-EAGAIN == frames)
+        
+        if (frames == -EAGAIN)
         {
-            for(unsigned int i=0; i<10; i++)
-                usleep(1000);
+            attempts++;
+            usleep(10000);
+        }
+        else if (frames == -EPIPE)
+        {
+            snd_pcm_prepare(FHandle);
+            frames = -EAGAIN;
+            attempts++;
+            usleep(10000);
+        }
+        else
+        {
+            break;
         }
     }
 
+    if (frames == -EAGAIN)
+    {
+        snd_pcm_drop(FHandle);
+        snd_pcm_prepare(FHandle);
+        return LoadBufferError;
+    }
+
     if (frames < 0)
+    {
         frames = snd_pcm_recover(FHandle, frames, 0);
+        if (frames < 0)
+            return LoadBufferError;
+    }
 
-
-
-
-    //snd_pcm_drain(FHandle);
+    int drain_attempts = 0;
+    int drain_result = -EAGAIN;
+    
+    while (drain_result == -EAGAIN && drain_attempts < 50)
+    {
+        drain_result = snd_pcm_drain(FHandle);
+        if (drain_result == -EAGAIN)
+        {
+            drain_attempts++;
+            usleep(10000);
+        }
+    }
+    
+    if (drain_result < 0 && drain_result != -EAGAIN)
+    {
+        snd_pcm_drop(FHandle);
+        snd_pcm_prepare(FHandle);
+    }
 
     return LoadBufferOk;
 }

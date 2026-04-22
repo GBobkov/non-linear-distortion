@@ -135,6 +135,9 @@ int main(int argc, char** argv) {
 
         std::cout << "Played " << entry.SignalId
                   << " (" << entry.FrequencyHz << " Hz)" << std::endl;
+
+        std::cout << "Sleep... " << std::endl;
+        sleep(1);
     }
 
     if (!gen.ReleaseStreamBuffer()) {

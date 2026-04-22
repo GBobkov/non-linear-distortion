@@ -15,6 +15,7 @@ WORKDIR /build
 COPY src/audiogenerator_alsa.h .
 COPY src/audiogenerator_alsa.cpp .
 COPY src/main.cpp .
+COPY dataset /build/dataset
 
 RUN g++ -o experiment \
     main.cpp \
@@ -22,6 +23,7 @@ RUN g++ -o experiment \
     -lasound \
     -lm \
     -O2 \
+    -std=c++17 \
     -static-libstdc++ \
     -static-libgcc
 
@@ -38,7 +40,7 @@ RUN apk add --no-cache --allow-untrusted \
 
 ARG AUDIO_GID=63
 
-RUN addgroup -g AUDIO_GROUP audio_host && \
+RUN addgroup -g ${AUDIO_GID} audio_host && \
     adduser -D -G audio_host experiment
 
 WORKDIR /app
@@ -46,6 +48,7 @@ WORKDIR /app
 # Копируем entrypoint из корня
 COPY docker_entrypoint.sh .
 COPY --from=builder /build/experiment .
+COPY --from=builder /build/dataset ./dataset
 
 RUN chmod +x docker_entrypoint.sh && \
     chown -R experiment:audio_host /app

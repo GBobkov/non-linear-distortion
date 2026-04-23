@@ -38,7 +38,7 @@ RUN apk add --no-cache --allow-untrusted \
     alsa-lib \
     alsa-utils
 
-ARG AUDIO_GID=63
+ARG AUDIO_GID=29
 
 RUN addgroup -g ${AUDIO_GID} audio_host && \
     adduser -D -G audio_host experiment

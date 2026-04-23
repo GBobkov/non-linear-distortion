@@ -90,6 +90,46 @@ bool LoadDatasetManifest(const std::string& manifest_path,
     return !entries.empty();
 }
 
+bool IsRepeatCommand(const std::string& command)
+{
+    return command == "repeat" || command == "r";
+}
+
+bool PlayEntry(TAlsaGenerator& gen,
+               const std::string& dataset_root,
+               const TDatasetEntry& entry)
+{
+    if (entry.SampleRateHz != TAlsaGenerator::CSampleRate)
+    {
+        std::cerr << "Skipping " << entry.SignalId
+                  << ": unsupported sample rate " << entry.SampleRateHz << std::endl;
+        return false;
+    }
+
+    std::vector<float> samples;
+    if (!LoadSignalSamples(dataset_root, entry, samples))
+    {
+        std::cerr << "Failed to load samples for " << entry.SignalId << std::endl;
+        return false;
+    }
+
+    if (gen.LoadStreamBuffer(&samples) != TAlsaGenerator::LoadBufferOk)
+    {
+        std::cerr << "Failed to play " << entry.SignalId << std::endl;
+        return false;
+    }
+
+    if (!gen.ReleaseStreamBuffer())
+    {
+        std::cerr << "Failed to drain audio stream for " << entry.SignalId << std::endl;
+        return false;
+    }
+
+    std::cout << "Played " << entry.SignalId
+              << " (" << entry.FrequencyHz << " Hz)" << std::endl;
+    return true;
+}
+
 } // namespace
 
 
@@ -115,36 +155,37 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    for (const TDatasetEntry& entry : dataset_entries) {
-        if (entry.SampleRateHz != TAlsaGenerator::CSampleRate) {
-            std::cerr << "Skipping " << entry.SignalId
-                      << ": unsupported sample rate " << entry.SampleRateHz << std::endl;
-            continue;
-        }
-
-        std::vector<float> samples;
-        if (!LoadSignalSamples(dataset_root, entry, samples)) {
-            std::cerr << "Failed to load samples for " << entry.SignalId << std::endl;
-            return 1;
-        }
-
-        if (gen.LoadStreamBuffer(&samples) != TAlsaGenerator::LoadBufferOk) {
-            std::cerr << "Failed to play " << entry.SignalId << std::endl;
-            return 1;
-        }
-
-        std::cout << "Played " << entry.SignalId
+    std::cout << "Loaded " << dataset_entries.size() << " signals." << std::endl;
+    for (std::size_t i = 0; i < dataset_entries.size(); ++i)
+    {
+        const TDatasetEntry& entry = dataset_entries[i];
+        std::cout << i << ": " << entry.SignalId
                   << " (" << entry.FrequencyHz << " Hz)" << std::endl;
-
-        std::cout << "Sleep... " << std::endl;
-        sleep(1);
     }
 
-    if (!gen.ReleaseStreamBuffer()) {
-        std::cerr << "Failed to drain audio stream" << std::endl;
-        return 1;
+    std::size_t played_count = 0;
+    std::size_t current_index = 0;
+    while (current_index < dataset_entries.size())
+    {
+        const TDatasetEntry& entry = dataset_entries[current_index];
+        if (!PlayEntry(gen, dataset_root, entry))
+            return 1;
+
+        ++played_count;
+        std::cout << "Command: 'repeat' to replay current signal, anything else for next: ";
+
+        std::string command;
+        if (!std::getline(std::cin, command))
+        {
+            std::cout << std::endl;
+            break;
+        }
+        command = TrimRight(command);
+
+        if (!IsRepeatCommand(command))
+            ++current_index;
     }
 
-    std::cout << "Finished playing " << dataset_entries.size() << " signals." << std::endl;
+    std::cout << "Finished playing " << played_count << " signal(s)." << std::endl;
     return 0;
 }
